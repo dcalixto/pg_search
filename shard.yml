@@ -1,0 +1,12 @@
+name: pg_search
+version: 0.1.0
+authors:
+  - Daniel Calixto calixtodaniel@gmail.com
+description: A PostgreSQL full-text search and ranking shard for Crystal.
+license: MIT
+crystal: 1.9.0
+dependencies:
+  db:
+    github: crystal-lang/crystal-db
+  pg:
+    github: will/crystal-pg
