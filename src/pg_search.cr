@@ -9,14 +9,17 @@ module PgSearch
         sanitized_query = query.gsub("'", "''")
         sql = <<-SQL
           SELECT * FROM #{table_name}
-          WHERE to_tsvector('english', COALESCE(title, '')) @@ plainto_tsquery($1) OR
-                to_tsvector('english', COALESCE(body, '')) @@ plainto_tsquery($1)
+          WHERE title ILIKE $1 OR body ILIKE $1
           ORDER BY 
-            ts_rank(to_tsvector('english', COALESCE(title, '')), plainto_tsquery($1)) +
-            ts_rank(to_tsvector('english', COALESCE(body, '')), plainto_tsquery($1)) DESC
+            CASE 
+              WHEN title ILIKE $1 THEN 2
+              WHEN body ILIKE $1 THEN 1
+              ELSE 0
+            END DESC,
+            created_at DESC
         SQL
 
-        db.query_all(sql, sanitized_query, as: self)
+        db.query_all(sql, "%#{sanitized_query}%", as: self)
       end
     end
   end
