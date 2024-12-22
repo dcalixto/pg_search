@@ -4,7 +4,7 @@ module PgSearch
 
     macro searchable_columns(columns)
       def self.search(query : String)
-        return self.none if query.blank?
+        return [] of self if query.blank?
 
         sanitized_query = query.gsub("'", "''")
         sql = <<-SQL
@@ -18,7 +18,7 @@ module PgSearch
           ORDER BY search_rank DESC
         SQL
 
-        query(sql)
+        db.query_all(sql, as: self)
       end
     end
   end
