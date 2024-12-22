@@ -1,27 +1,25 @@
 module PgSearch
   macro included
-    macro searchable_columns(columns)
-      def self.search(query : String)
-        return [] of self if query.blank?
-        
-        sanitized_query = query.gsub("'", "''")
-        columns_query = {{columns}}.map do |column|
-          "to_tsvector('english', COALESCE(#{column}, '')) @@ plainto_tsquery('#{sanitized_query}')"
-        end.join(" OR ")
+    extend ClassMethods
+  end
 
-        rank_expression = {{columns}}.map do |column|
-          "ts_rank(to_tsvector('english', COALESCE(#{column}, '')), plainto_tsquery('#{sanitized_query}'))"
-        end.join(" + ")
+  module ClassMethods
+    def search(query : String)
+      return [] of self if query.blank?
 
-        sql = <<-SQL
-          SELECT *, (#{rank_expression}) AS search_rank 
-          FROM #{table_name}
-          WHERE #{columns_query}
-          ORDER BY search_rank DESC
-        SQL
+      sanitized_query = query.gsub("'", "''")
+      sql = <<-SQL
+        SELECT *, (
+          ts_rank(to_tsvector('english', COALESCE(title, '')), plainto_tsquery('#{sanitized_query}')) +
+          ts_rank(to_tsvector('english', COALESCE(body, '')), plainto_tsquery('#{sanitized_query}'))
+        ) AS search_rank
+        FROM posts
+        WHERE to_tsvector('english', COALESCE(title, '')) @@ plainto_tsquery('#{sanitized_query}') OR
+              to_tsvector('english', COALESCE(body, '')) @@ plainto_tsquery('#{sanitized_query}'))
+        ORDER BY search_rank DESC
+      SQL
 
-        db.query_all(sql, as: self)
-      end
+      db.query_all(sql, as: self)
     end
   end
 end
