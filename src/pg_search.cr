@@ -8,17 +8,15 @@ module PgSearch
 
         sanitized_query = query.gsub("'", "''")
         sql = <<-SQL
-          SELECT *, (
-            ts_rank(to_tsvector('english', COALESCE(title, '')), plainto_tsquery('#{sanitized_query}')) +
-            ts_rank(to_tsvector('english', COALESCE(body, '')), plainto_tsquery('#{sanitized_query}'))
-          ) AS search_rank
-          FROM #{table_name}
-          WHERE to_tsvector('english', COALESCE(title, '')) @@ plainto_tsquery('#{sanitized_query}') OR
-                to_tsvector('english', COALESCE(body, '')) @@ plainto_tsquery('#{sanitized_query}')
-          ORDER BY search_rank DESC
+          SELECT * FROM #{table_name}
+          WHERE to_tsvector('english', COALESCE(title, '')) @@ plainto_tsquery($1) OR
+                to_tsvector('english', COALESCE(body, '')) @@ plainto_tsquery($1)
+          ORDER BY 
+            ts_rank(to_tsvector('english', COALESCE(title, '')), plainto_tsquery($1)) +
+            ts_rank(to_tsvector('english', COALESCE(body, '')), plainto_tsquery($1)) DESC
         SQL
 
-        db.query_all(sql, as: self)
+        db.query_all(sql, sanitized_query, as: self)
       end
     end
   end
