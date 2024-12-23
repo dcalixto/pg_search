@@ -1,16 +1,34 @@
-require "../src/pg_search"
+require "./spec_helper"
+require "./support/test_model"
 
 describe PgSearch do
-  it "performs a full-text search" do
-    query = "example"
-    results = PgSearch.search_by_text(query)
-    expect(results).not_to be_empty
-  end
+  describe ".search" do
+    it "returns empty array for blank search" do
+      results = TestModel.search("")
+      results.empty?.should be_true
+    end
 
-  it "uses custom weights for ranking" do
-    query = "example"
-    weights = {"votes" => 3, "comments" => 2, "punches" => 1}
-    results = PgSearch.search_by_text(query, weights)
-    expect(results).not_to be_empty
+    it "finds matches in title" do
+      model = TestModel.new(title: "test title", body: "some body")
+      results = TestModel.search("test")
+      results.first.title.should match(/test/i)
+    end
+
+    it "orders results by created_at in descending order" do
+      older = TestModel.new(
+        title: "test post",
+        body: "test body",
+        created_at: Time.utc - 1.day
+      )
+      newer = TestModel.new(
+        title: "test post",
+        body: "test body",
+        created_at: Time.utc
+      )
+
+      results = TestModel.search("test").to_a
+      ordered = results.sort_by(&.created_at).reverse
+      results.should eq ordered
+    end
   end
 end
