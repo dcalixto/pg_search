@@ -2,7 +2,7 @@
 
 PgSearch is a flexible full-text search and ranking shard for Crystal, leveraging PostgreSQL's to_tsvector and ts_rank for high-performance searches. It includes support for dynamic ranking based on user-defined weights for votes, comments, and other engagement metrics.
 
-[![Crystal Test](https://github.com/dcalixto/pg_search/actions/workflows/crystal-test.yml/badge.svg?branch=master)](https://github.com/dcalixto/pg_search/actions/workflows/crystal-test.yml)
+[![Crystal Test](https://github.com/dcalixto/pg_search/actions/workflows/crystal.yml/badge.svg?branch=master)](https://github.com/dcalixto/pg_search/actions/workflows/crystal.yml)
 
 **Features**
 
