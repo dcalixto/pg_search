@@ -1,6 +1,11 @@
 name: Crystal CI
 
-on: [push, pull_request]
+on:
+  workflow_dispatch:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
 
 jobs:
   test:
