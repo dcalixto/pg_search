@@ -32,6 +32,7 @@ module PgSearch
           ),
           reply_votes AS (
             SELECT p.id as post_id,
+              COUNT(r.id) as reply_count,
               SUM(v.positive - v.negative) as reply_vote_score
             FROM posts p
             LEFT JOIN comments c ON c.commentable_id = p.id AND c.commentable_type = 'Post'
@@ -44,7 +45,7 @@ module PgSearch
               (
                 LOG(GREATEST(ABS(COALESCE(comments_count, 0)), 1)) * 2 +
                 LOG(GREATEST(ABS(COALESCE(pvotes.vote_score, 0)), 1)) * 3 +
-                LOG(GREATEST(ABS(COALESCE(replies_count, 0)), 1)) * 1.5 +
+                LOG(GREATEST(ABS(COALESCE(rv.reply_count, 0)), 1)) * 1.5 +
                 LOG(GREATEST(ABS(COALESCE(pviews.view_count, 0)), 1)) * 2.5 +
                 LOG(GREATEST(ABS(COALESCE(cv.comment_vote_score, 0)), 1)) * 1.8 +
                 LOG(GREATEST(ABS(COALESCE(rv.reply_vote_score, 0)), 1)) * 1.3 +
@@ -66,8 +67,7 @@ module PgSearch
             WHERE posts.created_at > $1
           )
           SELECT *, engagement_score FROM scored_posts
-          ORDER BY engagement_score DESC, created_at DESC
-          SQL
+          ORDER BY engagement_score DESC, created_at DESC          SQL
           db.query_all(sql, Time.utc - 30.days, as: self)
         else
           sanitized_query = query.gsub("'", "''")
