@@ -2,18 +2,48 @@ module PgSearch
   module Scorable
     def self.calculate_engagement_score
       <<-SQL
-      (
+      WITH post_views AS (
+        SELECT resource_id, COUNT(*) as view_count
+        FROM punches 
+        WHERE resource_type = 'Post'
+        AND created_at > NOW() - INTERVAL '7 days'
+        GROUP BY resource_id
+      ),
+      comment_votes AS (
+        SELECT p.id as post_id, 
+               SUM(COALESCE(c.up_votes - c.down_votes, 0)) as comment_vote_score
+        FROM posts p
+        LEFT JOIN comments c ON c.post_id = p.id
+        GROUP BY p.id
+      ),
+      reply_votes AS (
+        SELECT p.id as post_id,
+               SUM(COALESCE(r.up_votes - r.down_votes, 0)) as reply_vote_score
+        FROM posts p
+        LEFT JOIN comments c ON c.post_id = p.id
+        LEFT JOIN replies r ON r.comment_id = c.id
+        GROUP BY p.id
+      )
+      SELECT (
         LOG(GREATEST(ABS(COALESCE(comments_count, 0)), 1)) * 2 +
-        LOG(GREATEST(ABS(COALESCE(votes_count, 0)), 1)) * 3 +
+        LOG(GREATEST(ABS(COALESCE(up_votes - down_votes, 0)), 1)) * 3 +
         LOG(GREATEST(ABS(COALESCE(replies_count, 0)), 1)) * 1.5 +
-        LOG(GREATEST(ABS(COALESCE(views_count, 0)), 1)) +
+        LOG(GREATEST(ABS(COALESCE(pv.view_count, 0)), 1)) * 2.5 +
+        LOG(GREATEST(ABS(COALESCE(cv.comment_vote_score, 0)), 1)) * 1.8 +
+        LOG(GREATEST(ABS(COALESCE(rv.reply_vote_score, 0)), 1)) * 1.3 +
         CASE 
           WHEN COALESCE(comments_count, 0) > 0 THEN 1 
-          WHEN COALESCE(votes_count, 0) > 0 THEN 1.5
+          WHEN COALESCE(up_votes, 0) > 0 THEN 1.5
+          WHEN COALESCE(pv.view_count, 0) > 10 THEN 1.2
+          WHEN COALESCE(cv.comment_vote_score, 0) > 5 THEN 1.1
+          WHEN COALESCE(rv.reply_vote_score, 0) > 5 THEN 1.0
           ELSE -1 
         END *
         (EXTRACT(EPOCH FROM (NOW() - created_at)) / 45000)
-      )
+      ) FROM #{table_name} 
+      LEFT JOIN post_views pv ON pv.resource_id = id
+      LEFT JOIN comment_votes cv ON cv.post_id = id
+      LEFT JOIN reply_votes rv ON rv.post_id = id
       SQL
     end
   end
