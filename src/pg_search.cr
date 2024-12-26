@@ -9,7 +9,7 @@ module PgSearch
         if query.blank?
           sql = <<-SQL
             SELECT *, 
-              #{Scorable.calculate_total_engagement_score("up_votes", "down_votes", "comments_count", "created_at")} as engagement_score
+              #{Scorable.calculate_total_engagement_score("CAST(up_votes AS INT)", "CAST(down_votes AS INT)", "CAST(comments_count AS INT)", "created_at")} as engagement_score
             FROM #{table_name}
             WHERE created_at > $1
             ORDER BY engagement_score DESC, created_at DESC
