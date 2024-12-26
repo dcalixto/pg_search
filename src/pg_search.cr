@@ -9,10 +9,13 @@ module PgSearch
         if query.blank?
           sql = <<-SQL
             WITH scored_posts AS (
-              SELECT *,
+              SELECT posts.*,
               #{Scorable.calculate_engagement_score} as engagement_score
-              FROM #{table_name}
-              WHERE created_at > $1
+              FROM #{table_name} posts
+              LEFT JOIN post_views pv ON pv.resource_id = posts.id
+              LEFT JOIN comment_votes cv ON cv.post_id = posts.id
+              LEFT JOIN reply_votes rv ON rv.post_id = posts.id
+              WHERE posts.created_at > $1
             )
             SELECT *, engagement_score FROM scored_posts
             ORDER BY engagement_score DESC, created_at DESC

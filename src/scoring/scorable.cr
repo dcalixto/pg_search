@@ -24,7 +24,7 @@ module PgSearch
         LEFT JOIN replies r ON r.comment_id = c.id
         GROUP BY p.id
       )
-      SELECT (
+      (
         LOG(GREATEST(ABS(COALESCE(comments_count, 0)), 1)) * 2 +
         LOG(GREATEST(ABS(COALESCE(up_votes - down_votes, 0)), 1)) * 3 +
         LOG(GREATEST(ABS(COALESCE(replies_count, 0)), 1)) * 1.5 +
@@ -40,10 +40,7 @@ module PgSearch
           ELSE -1 
         END *
         (EXTRACT(EPOCH FROM (NOW() - created_at)) / 45000)
-      ) FROM #{table_name} 
-      LEFT JOIN post_views pv ON pv.resource_id = id
-      LEFT JOIN comment_votes cv ON cv.post_id = id
-      LEFT JOIN reply_votes rv ON rv.post_id = id
+      )
       SQL
     end
   end
