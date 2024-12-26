@@ -38,7 +38,7 @@ DB.open("postgres://username:password@localhost/db_name")
 ## Usage
 
 1. Full-Text Search
-   PgSearch provides a search_by_text method to perform a full-text search on a PostgreSQL table. Include PgSearch in your model to use it.
+   PgSearch provides a search method to perform a full-text search on a PostgreSQL table. Include PgSearch in your model to use it.
 
 ```crystal
 require "pg_search"
@@ -49,7 +49,7 @@ end
 
 ## Perform a full-text search
 
-results = Post.search_by_text("example query")
+results = Post.search("example query")
 results.each do |post|
 puts "Post Title: #{post.title}, Score: #{post.ranking_score}"
 end
@@ -61,7 +61,7 @@ end
 ```crystal
 
 weights = {"votes" => 3, "comments" => 2, "punches" => 1}
-results = Post.search_by_text("example query", weights) 3. Search with Time Range
+results = Post.search("example query", weights) 3. Search with Time Range
 ```
 
 Use the SearchService to combine full-text search with time-based filtering and ranking:
@@ -89,7 +89,7 @@ Time range options:
 Override the default table name (posts) or searchable columns (title, body) by passing additional parameters:
 
 ```crystal
-results = PgSearch.search_by_text(
+results = PgSearch.search(
 "example query",
 {"votes" => 2, "comments" => 1},
 table_name: "articles",
