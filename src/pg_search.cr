@@ -43,15 +43,15 @@ module PgSearch
               SELECT posts.*,
                 (
                   LOG(GREATEST(ABS(COALESCE(comments_count, 0)), 1)) * 2 +
-                  LOG(GREATEST(ABS(COALESCE(pv.vote_score, 0)), 1)) * 3 +
+                  LOG(GREATEST(ABS(COALESCE(pvotes.vote_score, 0)), 1)) * 3 +
                   LOG(GREATEST(ABS(COALESCE(replies_count, 0)), 1)) * 1.5 +
-                  LOG(GREATEST(ABS(COALESCE(pv.view_count, 0)), 1)) * 2.5 +
+                  LOG(GREATEST(ABS(COALESCE(pviews.view_count, 0)), 1)) * 2.5 +
                   LOG(GREATEST(ABS(COALESCE(cv.comment_vote_score, 0)), 1)) * 1.8 +
                   LOG(GREATEST(ABS(COALESCE(rv.reply_vote_score, 0)), 1)) * 1.3 +
                   CASE 
                     WHEN COALESCE(comments_count, 0) > 0 THEN 1 
-                    WHEN COALESCE(pv.vote_score, 0) > 0 THEN 1.5
-                    WHEN COALESCE(pv.view_count, 0) > 10 THEN 1.2
+                    WHEN COALESCE(pvotes.vote_score, 0) > 0 THEN 1.5
+                    WHEN COALESCE(pviews.view_count, 0) > 10 THEN 1.2
                     WHEN COALESCE(cv.comment_vote_score, 0) > 5 THEN 1.1
                     WHEN COALESCE(rv.reply_vote_score, 0) > 5 THEN 1.0
                     ELSE -1 
@@ -59,15 +59,14 @@ module PgSearch
                   (EXTRACT(EPOCH FROM (NOW() - created_at)) / 45000)
                 ) as engagement_score
               FROM posts posts
-              LEFT JOIN post_views pv ON pv.post_id = posts.id
-              LEFT JOIN post_votes pv ON pv.post_id = posts.id
+              LEFT JOIN post_views pviews ON pviews.post_id = posts.id
+              LEFT JOIN post_votes pvotes ON pvotes.post_id = posts.id
               LEFT JOIN comment_votes cv ON cv.post_id = posts.id
               LEFT JOIN reply_votes rv ON rv.post_id = posts.id
               WHERE posts.created_at > $1
             )
             SELECT *, engagement_score FROM scored_posts
-            ORDER BY engagement_score DESC, created_at DESC
-          SQL
+            ORDER BY engagement_score DESC, created_at DESC          SQL
           # db.query_all(sql, Time.utc - 24.hours, as: self)
           db.query_all(sql, Time.utc - 30.days, as: self)
         else
