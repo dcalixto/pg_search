@@ -8,10 +8,18 @@ module PgSearch
       def self.search(query : String)
         if query.blank?
           sql = <<-SQL
-            SELECT *, 
-              #{Scorable.calculate_total_engagement_score("CAST(up_votes AS INT)", "CAST(down_votes AS INT)", "CAST(comments_count AS INT)", "created_at")} as engagement_score
-            FROM #{table_name}
-            WHERE created_at > $1
+            WITH scored_posts AS (
+              SELECT *,
+              (
+                LOG(GREATEST(ABS(up_votes - down_votes), 1)) +
+                CASE WHEN up_votes > down_votes THEN 1 ELSE -1 END *
+                (EXTRACT(EPOCH FROM (NOW() - created_at)) / 45000) +
+                (comments_count * 2.0)
+              ) as engagement_score
+              FROM #{table_name}
+              WHERE created_at > $1
+            )
+            SELECT * FROM scored_posts
             ORDER BY engagement_score DESC, created_at DESC
           SQL
           db.query_all(sql, Time.utc - 24.hours, as: self)
