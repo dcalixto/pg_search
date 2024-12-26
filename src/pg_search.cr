@@ -76,6 +76,9 @@ module PgSearch
           db.query_all(sql, "%#{sanitized_query}%", as: self)
         end
       end
+    end
+  end
+
   module ClassMethods
   end
 end
