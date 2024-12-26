@@ -11,10 +11,9 @@ module PgSearch
             WITH scored_posts AS (
               SELECT *,
               (
-                LOG(GREATEST(ABS(COALESCE(view_count, 0)), 1)) +
-                CASE WHEN COALESCE(view_count, 0) > 0 THEN 1 ELSE -1 END *
-                (EXTRACT(EPOCH FROM (NOW() - created_at)) / 45000) +
-                (COALESCE(comments_count, 0) * 2.0)
+                LOG(GREATEST(ABS(COALESCE(comments_count, 0)), 1)) +
+                CASE WHEN COALESCE(comments_count, 0) > 0 THEN 1 ELSE -1 END *
+                (EXTRACT(EPOCH FROM (NOW() - created_at)) / 45000)
               ) as engagement_score
               FROM #{table_name}
               WHERE created_at > $1
