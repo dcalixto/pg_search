@@ -1,3 +1,5 @@
+require "./scoring/scorable"
+
 module PgSearch
   macro included
     extend ClassMethods
@@ -6,13 +8,14 @@ module PgSearch
       def self.search(query : String)
         if query.blank?
           sql = <<-SQL
-            SELECT * FROM #{table_name}
+            SELECT *, 
+              #{Scorable.calculate_total_engagement_score("up_votes", "down_votes", "comments_count", "created_at")} as engagement_score
+            FROM #{table_name}
             WHERE created_at > $1
             ORDER BY engagement_score DESC, created_at DESC
           SQL
           db.query_all(sql, Time.utc - 24.hours, as: self)
         else
-          # existing search logic for non-blank queries
           sanitized_query = query.gsub("'", "''")
           sql = <<-SQL
             SELECT * FROM #{table_name}
