@@ -9,36 +9,28 @@ module PgSearch
         if query.blank?
           sql = <<-SQL
             WITH post_views AS (
-              SELECT punchable_id as post_id, COUNT(*) as view_count
+              SELECT resource_id, COUNT(*) as view_count
               FROM punches 
-              WHERE punchable_type = 'Post'
-              AND created_at > NOW() - INTERVAL '7 days'
-              GROUP BY punchable_id
-            ),
-            post_votes AS (
-              SELECT resource_id as post_id,
-                SUM(positive - negative) as vote_score
-              FROM votes
               WHERE resource_type = 'Post'
+              AND created_at > NOW() - INTERVAL '7 days'
               GROUP BY resource_id
             ),
             comment_votes AS (
-              SELECT p.id as post_id,
-                SUM(v.positive - v.negative) as comment_vote_score
+              SELECT p.id as post_id, 
+                     SUM(COALESCE(c.up_votes - c.down_votes, 0)) as comment_vote_score
               FROM posts p
-              LEFT JOIN comments c ON c.commentable_id = p.id AND c.commentable_type = 'Post'
-              LEFT JOIN votes v ON v.resource_id = c.id AND v.resource_type = 'Comment'
+              LEFT JOIN comments c ON c.post_id = p.id
               GROUP BY p.id
             ),
             reply_votes AS (
               SELECT p.id as post_id,
-                SUM(v.positive - v.negative) as reply_vote_score
+                     SUM(COALESCE(r.up_votes - r.down_votes, 0)) as reply_vote_score
               FROM posts p
-              LEFT JOIN comments c ON c.commentable_id = p.id AND c.commentable_type = 'Post'
-              LEFT JOIN comments r ON r.commentable_id = c.id AND r.commentable_type = 'Comment'
-              LEFT JOIN votes v ON v.resource_id = r.id AND v.resource_type = 'Comment'
+              LEFT JOIN comments c ON c.post_id = p.id
+              LEFT JOIN replies r ON r.comment_id = c.id
               GROUP BY p.id
-            )            ),            scored_posts AS (
+            ),
+            scored_posts AS (
               SELECT posts.*,
               (
                 LOG(GREATEST(ABS(COALESCE(comments_count, 0)), 1)) * 2 +
@@ -58,7 +50,7 @@ module PgSearch
                 (EXTRACT(EPOCH FROM (NOW() - created_at)) / 45000)
               ) as engagement_score
               FROM posts posts
-              LEFT JOIN post_views pv ON pv.post_id = posts.id
+              LEFT JOIN post_views pv ON pv.resource_id = posts.id
               LEFT JOIN comment_votes cv ON cv.post_id = posts.id
               LEFT JOIN reply_votes rv ON rv.post_id = posts.id
               WHERE posts.created_at > $1
