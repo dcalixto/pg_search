@@ -17,14 +17,15 @@ module PgSearch
             ),
             comment_votes AS (
               SELECT p.id as post_id, 
-                SUM(COALESCE(c.up_votes - c.down_votes, 0)) as comment_vote_score
+                SUM(c.comment_vote_score) as total_comment_score,
+                SUM(c.reply_vote_score) as total_reply_score
               FROM posts p
               LEFT JOIN comments c ON c.commentable_id = p.id AND c.commentable_type = 'Post'
               GROUP BY p.id
             ),
             reply_votes AS (
               SELECT p.id as post_id,
-                SUM(COALESCE(r.up_votes - r.down_votes, 0)) as reply_vote_score
+                COUNT(r.id) as reply_vote_score
               FROM posts p
               LEFT JOIN comments c ON c.commentable_id = p.id AND c.commentable_type = 'Post'
               LEFT JOIN comments r ON r.commentable_id = c.id AND r.commentable_type = 'Comment'
