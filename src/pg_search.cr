@@ -9,11 +9,11 @@ module PgSearch
         if query.blank?
           sql = <<-SQL
             WITH post_views AS (
-              SELECT resource_id, COUNT(*) as view_count
+              SELECT punchable_id as post_id, COUNT(*) as view_count
               FROM punches 
-              WHERE resource_type = 'Post'
+              WHERE punchable_type = 'Post'
               AND created_at > NOW() - INTERVAL '7 days'
-              GROUP BY resource_id
+              GROUP BY punchable_id
             ),
             comment_votes AS (
               SELECT p.id as post_id, 
@@ -50,7 +50,7 @@ module PgSearch
                 (EXTRACT(EPOCH FROM (NOW() - created_at)) / 45000)
               ) as engagement_score
               FROM posts posts
-              LEFT JOIN post_views pv ON pv.resource_id = posts.id
+              LEFT JOIN post_views pv ON pv.post_id = posts.id
               LEFT JOIN comment_votes cv ON cv.post_id = posts.id
               LEFT JOIN reply_votes rv ON rv.post_id = posts.id
               WHERE posts.created_at > $1
