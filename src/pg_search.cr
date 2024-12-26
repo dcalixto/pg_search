@@ -22,7 +22,7 @@ module PgSearch
   ORDER BY engagement_score DESC, created_at DESC
 SQL
           #db.query_all(sql, Time.utc - 24.hours, as: self)
-          db.query_all(sql, Time.utc - 7.days, as: self)  # or even longer
+          db.query_all(sql, Time.utc - 30.days, as: self)  # or even longer
 
         else
           sanitized_query = query.gsub("'", "''")
