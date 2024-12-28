@@ -26,11 +26,13 @@ module PgSearch
     end
   end
 
-  def self.start_auto_refresh(interval_seconds = 300)
-    spawn do
-      loop do
-        refresh_engagement_scores
-        sleep interval_seconds
+  module PgSearch
+    def self.start_auto_refresh(interval_seconds = 300)
+      spawn do
+        loop do
+          refresh_engagement_scores
+          sleep interval_seconds
+        end
       end
     end
   end
