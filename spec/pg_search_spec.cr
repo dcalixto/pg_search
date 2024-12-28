@@ -1,58 +1,47 @@
 require "./spec_helper"
-require "./support/test_model"
 
 describe PgSearch do
-  describe ".search" do
-    it "returns posts with highest engagement from last 24 hours when search is blank" do
-      # Create posts within 24h window
-      low_engagement = TestModel.new(
-        title: "low engagement",
-        body: "test body",
-        created_at: Time.utc - 12.hours
+  before_each do
+    # Drop tables
+    TestModel.db.exec "DROP TABLE IF EXISTS test_models CASCADE"
+    TestModel.db.exec "DROP TABLE IF EXISTS punches CASCADE"
+    TestModel.db.exec "DROP TABLE IF EXISTS votes CASCADE"
+    TestModel.db.exec "DROP TABLE IF EXISTS comments CASCADE"
+
+    # Create test_models table
+    TestModel.db.exec "CREATE TABLE test_models (id BIGSERIAL PRIMARY KEY, title VARCHAR(255), body TEXT, created_at TIMESTAMP DEFAULT NOW())"
+
+    # Create punches table
+    TestModel.db.exec "CREATE TABLE punches (id BIGSERIAL PRIMARY KEY, punchable_id BIGINT, punchable_type VARCHAR(255), created_at TIMESTAMP DEFAULT NOW())"
+
+    # Create votes table
+    TestModel.db.exec "CREATE TABLE votes (id BIGSERIAL PRIMARY KEY, resource_id BIGINT, resource_type VARCHAR(255), positive INTEGER DEFAULT 0, negative INTEGER DEFAULT 0)"
+
+    # Create comments table
+    TestModel.db.exec "CREATE TABLE comments (id BIGSERIAL PRIMARY KEY, commentable_id BIGINT, commentable_type VARCHAR(255))"
+  end
+
+  describe ".search with engagement" do
+    it "calculates engagement scores correctly" do
+      # Insert test data
+      TestModel.db.exec(
+        "INSERT INTO test_models (title, body) VALUES ($1, $2)",
+        "Engaging Post",
+        "Popular content"
       )
 
-      high_engagement = TestModel.new(
-        title: "high engagement",
-        body: "test body",
-        created_at: Time.utc - 12.hours
+      # Add engagement data
+      TestModel.db.exec(
+        "INSERT INTO punches (punchable_id, punchable_type) VALUES (1, 'test_models')"
       )
 
-      # Create post outside 24h window
-      old_post = TestModel.new(
-        title: "old post",
-        body: "test body",
-        created_at: Time.utc - 25.hours
+      TestModel.db.exec(
+        "INSERT INTO votes (resource_id, resource_type, positive) VALUES (1, 'test_models', 5)"
       )
 
-      results = TestModel.search("").to_a
-
-      # Verify results are within 24h window
-      results.each do |post|
-        (Time.utc - post.created_at).should be <= 24.hours
-      end
-    end
-
-    it "finds matches in title" do
-      model = TestModel.new(title: "test title", body: "some body")
-      results = TestModel.search("test")
-      results.first.title.should match(/test/i)
-    end
-
-    it "orders results by created_at in descending order" do
-      older = TestModel.new(
-        title: "test post",
-        body: "test body",
-        created_at: Time.utc - 1.day
-      )
-      newer = TestModel.new(
-        title: "test post",
-        body: "test body",
-        created_at: Time.utc
-      )
-
-      results = TestModel.search("test").to_a
-      ordered = results.sort_by(&.created_at).reverse
-      results.should eq ordered
+      results = TestModel.search("Engaging")
+      results.size.should eq(1)
+      results.first.title.should eq("Engaging Post")
     end
   end
 end

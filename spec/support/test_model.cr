@@ -2,35 +2,20 @@ require "db"
 require "pg"
 
 class TestModel
-  include PgSearch
-  include DB::Serializable
+  @@table_name : String = "test_models"
+  @@db : DB::Database = DB.open(ENV["DATABASE_URL"])
 
-  @@db : DB::Database = DB.open("postgres://postgres:postgres@localhost:5432/test_db")
-  property id : Int32?
+  include DB::Serializable
+  include PgSearch
+
+  property id : Int64
   property title : String
   property body : String
   property created_at : Time
 
-  def self.table_name
-    "test_models"
-  end
-
-  def self.db
-    @@db
+  def self.query_all(query : String)
+    @@db.query_all(query, as: self)
   end
 
   searchable_columns [:title, :body]
-
-  def initialize(@title, @body, @created_at = Time.utc)
-    @id = nil
-    save
-  end
-
-  def save
-    result = self.class.db.exec(
-      "INSERT INTO test_models (title, body, created_at) VALUES ($1, $2, $3) RETURNING id",
-      @title, @body, @created_at
-    )
-    @id = result.last_insert_id.to_i32
-  end
 end

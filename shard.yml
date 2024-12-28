@@ -10,3 +10,6 @@ dependencies:
     github: crystal-lang/crystal-db
   pg:
     github: will/crystal-pg
+development_dependencies:
+  micrate:
+    github: dcalixto/micrate
