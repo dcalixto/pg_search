@@ -38,8 +38,10 @@ module PgSearch
   end
 end
 
-def self.refresh_engagement_scores
-  DB.connect(DB_URL) do |db|
-    db.exec "REFRESH MATERIALIZED VIEW post_engagement_scores"
+module PgSearch
+  def self.refresh_engagement_scores
+    DB.connect(DB_URL) do |db|
+      db.exec "REFRESH MATERIALIZED VIEW post_engagement_scores"
+    end
   end
 end
