@@ -1,7 +1,7 @@
 module PgSearch
   class Install
     def self.run
-      DB.connect(DB_URL) do |db|
+      DB.connect(DATABASE_URL) do |db|
         db.exec <<-SQL
           CREATE MATERIALIZED VIEW IF NOT EXISTS post_engagement_scores AS
           SELECT p.*, 
