@@ -2,20 +2,13 @@ require "db"
 require "pg"
 
 class TestModel
-  @@table_name : String = "test_models"
-  @@db : DB::Database = DB.open(ENV["DATABASE_URL"])
-
-  include DB::Serializable
   include PgSearch
+  extend PgSearch::ClassMethods
 
-  property id : Int64
-  property title : String
-  property body : String
-  property created_at : Time
+  getter id : Int64
+  getter title : String
+  getter body : String
 
-  def self.query_all(query : String)
-    @@db.query_all(query, as: self)
+  def initialize(@id, @title, @body)
   end
-
-  searchable_columns [:title, :body]
 end

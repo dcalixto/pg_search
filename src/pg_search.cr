@@ -1,4 +1,6 @@
 module PgSearch
+  extend self
+
   macro included
     def self.query(sql)
       DB.connect(DB_URL) do |db|
@@ -35,45 +37,63 @@ module PgSearch
     end
   end
 
+  # def self.calculate_engagement_score(resource_type : String, resource_id : Int64)
+  #   query = <<-SQL
+  #     SELECT COALESCE(
+  #       SUM(
+  #         CASE
+  #           WHEN positive = true THEN 1
+  #           WHEN negative = true THEN -1
+  #           ELSE value
+  #         END
+  #       )::bigint,
+  #       0
+  #     ) as score
+  #     FROM votes
+  #     WHERE resource_type = $1
+  #     AND resource_id = $2
+  #   SQL
+
+  #   DB.connect(DB_URL) do |db|
+  #     db.query_one(query, resource_type, resource_id, as: Int64)
+  #   end
+  # end
+
+  def self.calculate_engagement_score(id : Int64) : Float64
+    DB.connect(DB_URL) do |db|
+      result = db.query_one? <<-SQL, id, as: {Float64}
+        SELECT COALESCE(
+          SUM(
+            CASE 
+              WHEN positive IS TRUE THEN 1
+              WHEN negative IS TRUE THEN -1
+              ELSE value
+            END
+          )::float,
+          0.0
+        ) as engagement
+        FROM votes
+        WHERE resource_id = $1
+      SQL
+      result || 0.0
+    end
+  end
+
   def self.refresh_engagement_scores
     DB.connect(DB_URL) do |db|
       db.exec "REFRESH MATERIALIZED VIEW post_engagement_scores"
     end
   end
 
-  def self.calculate_engagement_score(resource_type : String, resource_id : Int64)
-    query = <<-SQL
-      SELECT COALESCE(
-        SUM(
-          CASE 
-            WHEN positive = true THEN 1
-            WHEN negative = true THEN -1
-            ELSE value
-          END
-        )::bigint, 
-        0
-      ) as score
-      FROM votes 
-      WHERE resource_type = $1 
-      AND resource_id = $2
-    SQL
-
-    DB.connect(DB_URL) do |db|
-      db.query_one(query, resource_type, resource_id, as: Int64)
+  macro included
+    def self.calculate_engagement_score(id : Int64) : Float64
+      PgSearch.calculate_engagement_score(id)
     end
   end
+end
 
-  def self.refresh_engagement_scores
-    DB.connect(DB_URL) do |db|
-      # Update the materialized view with new engagement scores
-      db.exec <<-SQL
-        REFRESH MATERIALIZED VIEW post_engagement_scores;
-        UPDATE post_engagement_scores 
-        SET engagement = (
-          SELECT calculate_engagement_score('Post', id)
-          FROM posts WHERE posts.id = post_engagement_scores.id
-        );
-      SQL
-    end
-  end
+module PgSearch
+  DB_URL = ENV["DATABASE_URL"]? || "postgres://postgres:postgres@localhost:5432/pg_search_test"
+
+  # Rest of your existing code...
 end

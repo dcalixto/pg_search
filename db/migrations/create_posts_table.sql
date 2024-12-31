@@ -1,0 +1,7 @@
+CREATE TABLE posts (
+  id BIGSERIAL PRIMARY KEY,
+  title TEXT,
+  content TEXT,
+  engagement FLOAT DEFAULT 0.0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

@@ -3,24 +3,80 @@ require "db"
 require "pg"
 require "../src/pg_search"
 
-DB_URL = "postgres://postgres:postgres@localhost/pg_search_test"
+DB_URL = ENV["DATABASE_URL"]? || "postgres://postgres:postgres@localhost:5432/pg_search_test"
+
+# Initial database setup
+DB.open(DB_URL) do |db|
+  db.exec <<-SQL
+    CREATE TABLE IF NOT EXISTS test_models (
+      id BIGSERIAL PRIMARY KEY,
+      title VARCHAR(255),
+      body TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  SQL
+end
 
 Spec.before_each do
   DB.open(DB_URL) do |db|
-    # First terminate all other connections to allow schema drop
-    db.exec "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid()"
+    # Drop existing tables and views
+    db.exec "DROP TABLE IF EXISTS test_models CASCADE"
+    db.exec "DROP TABLE IF EXISTS votes CASCADE"
+    db.exec "DROP MATERIALIZED VIEW IF EXISTS post_engagement_scores"
 
-    # Now we can safely drop and recreate the schema
-    db.exec "DROP SCHEMA public CASCADE"
-    db.exec "CREATE SCHEMA public"
-    db.exec "GRANT ALL ON SCHEMA public TO postgres"
-    db.exec "GRANT ALL ON SCHEMA public TO public"
+    # Create test_models table
+    db.exec <<-SQL
+      CREATE TABLE test_models (
+        id BIGSERIAL PRIMARY KEY,
+        title VARCHAR(255),
+        body TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    SQL
 
-    # Create tables in the fresh schema
-    db.exec "CREATE TABLE test_models (id BIGSERIAL PRIMARY KEY, title VARCHAR(255), body TEXT, created_at TIMESTAMP DEFAULT NOW())"
-    db.exec "CREATE TABLE punches (id BIGSERIAL PRIMARY KEY, punchable_id BIGINT, punchable_type VARCHAR(255), created_at TIMESTAMP DEFAULT NOW())"
-    db.exec "CREATE TABLE votes (id BIGSERIAL PRIMARY KEY, resource_id BIGINT, resource_type VARCHAR(255), positive INTEGER DEFAULT 0, negative INTEGER DEFAULT 0)"
-    db.exec "CREATE TABLE comments (id BIGSERIAL PRIMARY KEY, commentable_id BIGINT, commentable_type VARCHAR(255))"
+    # Create votes table
+    db.exec <<-SQL
+      CREATE TABLE votes (
+        id BIGSERIAL PRIMARY KEY,
+        resource_id BIGINT,
+        resource_type VARCHAR(255),
+        positive BOOLEAN,
+        negative BOOLEAN,
+        value FLOAT8
+      )
+    SQL
+    # Create materialized view with explicit FLOAT8 casting
+    db.exec <<-SQL
+      CREATE MATERIALIZED VIEW post_engagement_scores AS
+      SELECT
+        t.id,
+        t.title,
+        t.body,
+        t.created_at,
+        COALESCE(
+          (SELECT SUM(
+            CASE
+              WHEN positive IS TRUE THEN 1.0
+              WHEN negative IS TRUE THEN -1.0
+              ELSE COALESCE(value, 0.0)
+            END
+          )::FLOAT8
+          FROM votes
+          WHERE resource_id = t.id),
+          0.0
+        )::FLOAT8 as engagement
+      FROM test_models t
+    SQL
+    db.exec "CREATE UNIQUE INDEX ON post_engagement_scores (id)"
+  end
+end
+
+class TestModel
+  include DB::Serializable
+  include PgSearch
+
+  def self.refresh_engagement_scores
+    db.exec "REFRESH MATERIALIZED VIEW post_engagement_scores"
   end
 end
 
@@ -30,7 +86,7 @@ class TestModel
 
   @@db : DB::Database? = nil
 
-  def self.db : DB::Database
+  def self.db
     @@db ||= DB.open(DB_URL)
   end
 
@@ -38,26 +94,42 @@ class TestModel
   property title : String
   property body : String
   property created_at : Time = Time.utc
-  property total_comments : Int64 = 0
-  property total_replies : Int64 = 0
   property engagement : Float64 = 0.0
 
   def initialize(@title : String, @body : String)
   end
 
-  def self.table_name
-    "test_models"
-  end
-
   searchable_columns [:title, :body]
 
-  def self.table_name
-    "test_models"
+  def self.search(query : String)
+    return [] of TestModel if query.blank?
+
+    sql = <<-SQL
+      SELECT
+        t.id,
+        t.title,
+        t.body,
+        t.created_at,
+        COALESCE(pes.engagement, 0.0)::FLOAT8 as engagement
+      FROM test_models t
+      LEFT JOIN post_engagement_scores pes ON pes.id = t.id
+      WHERE
+        t.title ILIKE $1 OR
+        t.body ILIKE $1
+      ORDER BY pes.engagement DESC, t.created_at DESC
+    SQL
+
+    db.query_all(sql, "%#{query}%", as: TestModel)
   end
 
-  searchable_columns [:title, :body]
+  def self.refresh_engagement_scores
+    db.exec "REFRESH MATERIALIZED VIEW post_engagement_scores"
+  end
 end
 
 Spec.after_each do
-  TestModel.db.exec "DROP TABLE IF EXISTS test_models"
+  DB.open(DB_URL) do |db|
+    # No need to drop the materialized view here, CASCADE handles it
+    db.exec "DROP TABLE IF EXISTS test_models CASCADE"
+  end
 end
