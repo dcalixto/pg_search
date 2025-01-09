@@ -1,9 +1,9 @@
 module PgSearch
   class Configuration
-    getter model : Class
+    getter model : DB::Serializable.class
     getter options : Hash(Symbol, String | Symbol | Hash(Symbol, String | Bool))
 
-    def initialize(@options, @model : Class)
+    def initialize(@options, @model : DB::Serializable.class)
       @options = default_options.merge(options)
       validate_options!
     end
