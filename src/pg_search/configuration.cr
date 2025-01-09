@@ -33,9 +33,14 @@ module PgSearch
       getter columns : Array(ForeignColumn)
 
       def initialize(@model, @name : Symbol, column_names)
-        @columns = column_names.map do |column_name, weight|
-          ForeignColumn.new(column_name.to_s, weight, @model, self)
+        @columns = [] of ForeignColumn
+        column_names.each do |column_name, weight|
+          @columns << ForeignColumn.new(column_name.to_s, weight, @model, self)
         end
+      end
+
+      def join_sql(primary_key)
+        "LEFT OUTER JOIN #{table_name} ON #{table_name}.id = #{primary_key}"
       end
     end
 
