@@ -1,4 +1,12 @@
 module PgSearch
+  macro searchable_columns(columns)
+    @@searchable_columns = {{columns}}
+    
+    def self.searchable_columns
+      @@searchable_columns
+    end
+  end
+
   class Document
     include DB::Serializable
     include PgSearch
