@@ -1,3 +1,5 @@
+require "./pg_search/*"
+
 module PgSearch
   macro included
     macro pg_search_scope(name, options)
