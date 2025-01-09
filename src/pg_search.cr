@@ -3,7 +3,7 @@ require "./pg_search/features/*"
 
 module PgSearch
   DB_URL = ENV["DATABASE_URL"]? || "postgres://postgres:postgres@localhost:5432/pg_search_test"
-  
+
   extend self
 
   macro included
@@ -24,6 +24,27 @@ module PgSearch
     end
   end
 
+  macro pg_search_scope(name, options)
+    def self.{{name.id}}(query : String)
+      return [] of self if query.blank?
+      
+      tsearch = Features::TSearch.new
+      tsearch.dictionary = {{options[:using][:tsearch][:dictionary]}}
+      tsearch.prefix = {{options[:using][:tsearch][:prefix]}}
+      
+      sql = <<-SQL
+        SELECT *,
+          #{tsearch.rank("to_tsvector('#{tsearch.dictionary}', #{table_name}.{{options[:against]}})", query)} as rank
+        FROM #{table_name}
+        WHERE #{tsearch.search_vector("#{table_name}.{{options[:against]}}")} @@ to_tsquery('#{tsearch.dictionary}', #{tsearch.search_query(query)})
+        ORDER BY rank DESC, created_at DESC
+      SQL
+      
+      DB.connect(DB_URL) do |db|
+        db.query_all(sql, as: self)
+      end
+    end
+  end
   macro searchable_columns(columns, options = nil)
     def self.search(query : String, config = {} of Symbol => String|Bool|Float64)
       return [] of self if query.blank?
@@ -55,28 +76,6 @@ module PgSearch
         ORDER BY rank DESC, #{table_name}.created_at DESC
       SQL
 
-      DB.connect(DB_URL) do |db|
-        db.query_all(sql, as: self)
-      end
-    end
-  end
-
-  macro pg_search_scope(name, options)
-    def self.{{name.id}}(query : String)
-      return [] of self if query.blank?
-      
-      tsearch = Features::TSearch.new
-      tsearch.dictionary = {{options[:using][:tsearch][:dictionary]}}
-      tsearch.prefix = {{options[:using][:tsearch][:prefix]}}
-      
-      sql = <<-SQL
-        SELECT *,
-          #{tsearch.rank("to_tsvector('#{tsearch.dictionary}', #{table_name}.{{options[:against]}})", query)} as rank
-        FROM #{table_name}
-        WHERE #{tsearch.search_vector("#{table_name}.{{options[:against]}}")} @@ to_tsquery('#{tsearch.dictionary}', #{tsearch.search_query(query)})
-        ORDER BY rank DESC, created_at DESC
-      SQL
-      
       DB.connect(DB_URL) do |db|
         db.query_all(sql, as: self)
       end
