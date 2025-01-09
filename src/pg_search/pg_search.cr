@@ -1,4 +1,6 @@
-require "./pg_search/*"
+require "./pg_search/configuration"
+require "./pg_search/scope_options"
+require "./pg_search/features/*"
 
 module PgSearch
   macro included
