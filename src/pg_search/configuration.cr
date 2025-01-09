@@ -1,9 +1,9 @@
 module PgSearch
   class Configuration
-    getter model : Class(Reference)
+    getter model : Class
     getter options : Hash(Symbol, String | Symbol | Hash(Symbol, String | Bool))
 
-    def initialize(@options, @model)
+    def initialize(@options, @model : Class)
       @options = default_options.merge(options)
       validate_options!
     end
