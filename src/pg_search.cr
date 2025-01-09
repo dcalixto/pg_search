@@ -1,6 +1,9 @@
 require "./pg_search/*"
+require "./pg_search/features/*"
 
 module PgSearch
+  DB_URL = ENV["DATABASE_URL"]? || "postgres://postgres:postgres@localhost:5432/pg_search_test"
+  
   extend self
 
   macro included
@@ -15,6 +18,10 @@ module PgSearch
         db.query_all(sql, as: self)
       end
     end
+
+    def self.calculate_engagement_score(id : Int64) : Float64
+      PgSearch.calculate_engagement_score(id)
+    end
   end
 
   macro searchable_columns(columns, options = nil)
@@ -28,11 +35,10 @@ module PgSearch
       )
       
       sanitized_query = PG::EscapeHelper.escape_literal("%#{query}%")
-      
       where_conditions = {{ columns }}.map { |col| "#{table_name}.#{col} ILIKE #{sanitized_query}" }
       
       sql = <<-SQL
-        SELECT DISTINCT #{table_name}.*, 
+        SELECT DISTINCT #{table_name}.*,
           COALESCE(pes.engagement, 0) as engagement_score,
           ts_rank(
             setweight(#{tsearch.search_vector("title")}, 'A') ||
@@ -42,7 +48,7 @@ module PgSearch
           ) * (1 + COALESCE(pes.engagement, 0)) as rank
         FROM #{table_name}
         LEFT JOIN post_engagement_scores pes ON pes.id = #{table_name}.id
-        LEFT JOIN comments ON comments.commentable_id = #{table_name}.id 
+        LEFT JOIN comments ON comments.commentable_id = #{table_name}.id
           AND comments.commentable_type = '#{self}'
         WHERE #{where_conditions.join(" OR ")}
         GROUP BY #{table_name}.id, pes.engagement
@@ -58,10 +64,9 @@ module PgSearch
       return [] of self if query.blank?
       
       sanitized_query = PG::EscapeHelper.escape_literal("%#{query}%")
-      
       sql = <<-SQL
         WITH search_results AS (
-          SELECT 
+          SELECT
             p.*,
             COALESCE(pes.engagement, 0) as engagement_score,
             ts_rank(
@@ -73,7 +78,7 @@ module PgSearch
           FROM posts p
           LEFT JOIN post_engagement_scores pes ON p.id = pes.id
           LEFT JOIN comments c ON c.commentable_id = p.id AND c.commentable_type = 'Post'
-          WHERE 
+          WHERE
             p.title ILIKE #{sanitized_query} OR
             p.body ILIKE #{sanitized_query} OR
             c.body ILIKE #{sanitized_query}
@@ -85,6 +90,28 @@ module PgSearch
         ORDER BY final_rank DESC, created_at DESC
       SQL
 
+      DB.connect(DB_URL) do |db|
+        db.query_all(sql, as: self)
+      end
+    end
+  end
+
+  macro pg_search_scope(name, options)
+    def self.{{name.id}}(query : String)
+      return [] of self if query.blank?
+      
+      tsearch = Features::TSearch.new
+      tsearch.dictionary = {{options[:using][:tsearch][:dictionary]}}
+      tsearch.prefix = {{options[:using][:tsearch][:prefix]}}
+      
+      sql = <<-SQL
+        SELECT *,
+          #{tsearch.rank("to_tsvector('#{tsearch.dictionary}', #{table_name}.{{options[:against]}})", query)} as rank
+        FROM #{table_name}
+        WHERE #{tsearch.search_vector("#{table_name}.{{options[:against]}}")} @@ to_tsquery('#{tsearch.dictionary}', #{tsearch.search_query(query)})
+        ORDER BY rank DESC, created_at DESC
+      SQL
+      
       DB.connect(DB_URL) do |db|
         db.query_all(sql, as: self)
       end
@@ -105,7 +132,7 @@ module PgSearch
       result = db.query_one? <<-SQL, id, as: {Float64}
         SELECT COALESCE(
           SUM(
-            CASE 
+            CASE
               WHEN positive IS TRUE THEN 1
               WHEN negative IS TRUE THEN -1
               ELSE value
@@ -125,16 +152,4 @@ module PgSearch
       db.exec "REFRESH MATERIALIZED VIEW post_engagement_scores"
     end
   end
-
-  macro included
-    def self.calculate_engagement_score(id : Int64) : Float64
-      PgSearch.calculate_engagement_score(id)
-    end
-  end
-end
-
-module PgSearch
-  DB_URL = ENV["DATABASE_URL"]? || "postgres://postgres:postgres@localhost:5432/pg_search_test"
-
-  # Rest of your existing code...
 end
