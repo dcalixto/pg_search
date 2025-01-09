@@ -59,41 +59,6 @@ module PgSearch
         db.query_all(sql, as: self)
       end
     end
-
-    def self.advanced_search(query : String, options = {} of Symbol => String|Bool)
-      return [] of self if query.blank?
-      
-      sanitized_query = PG::EscapeHelper.escape_literal("%#{query}%")
-      sql = <<-SQL
-        WITH search_results AS (
-          SELECT
-            p.*,
-            COALESCE(pes.engagement, 0) as engagement_score,
-            ts_rank(
-              setweight(to_tsvector('english', p.title), 'A') ||
-              setweight(to_tsvector('english', p.body), 'B') ||
-              setweight(to_tsvector('english', COALESCE(string_agg(c.body, ' '), '')), 'C'),
-              plainto_tsquery('english', #{sanitized_query})
-            ) as text_rank
-          FROM posts p
-          LEFT JOIN post_engagement_scores pes ON p.id = pes.id
-          LEFT JOIN comments c ON c.commentable_id = p.id AND c.commentable_type = 'Post'
-          WHERE
-            p.title ILIKE #{sanitized_query} OR
-            p.body ILIKE #{sanitized_query} OR
-            c.body ILIKE #{sanitized_query}
-          GROUP BY p.id, pes.engagement
-        )
-        SELECT *,
-          (text_rank * (1 + engagement_score)) as final_rank
-        FROM search_results
-        ORDER BY final_rank DESC, created_at DESC
-      SQL
-
-      DB.connect(DB_URL) do |db|
-        db.query_all(sql, as: self)
-      end
-    end
   end
 
   macro pg_search_scope(name, options)
