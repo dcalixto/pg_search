@@ -1,19 +1,19 @@
 module PgSearch
   macro included
     macro pg_search_scope(name, options)
-      def self.\{{name.id}}(query : String)
+      def self.{{name.id}}(query : String)
         return [] of self if query.blank?
         
         tsearch = PgSearch::Features::TSearch.new(
-          dictionary: \{{options[:using][:tsearch][:dictionary]}},
-          prefix: \{{options[:using][:tsearch][:prefix]}}
+          dictionary: {{options[:using][:tsearch][:dictionary]}},
+          prefix: {{options[:using][:tsearch][:prefix]}}
         )
         
         trigram = PgSearch::Features::Trigram.new(
-          threshold: \{{options[:using][:trigram][:threshold]}}
+          threshold: {{options[:using][:trigram][:threshold]}}
         )
         
-        columns = \{{options[:against]}}
+        columns = {{options[:against]}}
         
         sql = <<-SQL
           SELECT *, 
