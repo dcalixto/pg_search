@@ -25,18 +25,19 @@ module PgSearch
         GROUP BY p.id
       )
       (
-        LOG(GREATEST(ABS(COALESCE(comments_count, 0)), 1)) * 2 +
-        LOG(GREATEST(ABS(COALESCE(up_votes - down_votes, 0)), 1)) * 3 +
-        LOG(GREATEST(ABS(COALESCE(replies_count, 0)), 1)) * 1.5 +
-        LOG(GREATEST(ABS(COALESCE(pv.view_count, 0)), 1)) * 2.5 +
-        LOG(GREATEST(ABS(COALESCE(cv.comment_vote_score, 0)), 1)) * 1.8 +
-        LOG(GREATEST(ABS(COALESCE(rv.reply_vote_score, 0)), 1)) * 1.3 +
+        LOG(GREATEST(ABS(COALESCE(comments_count, 0)), 1)) * 4 +
+        LOG(GREATEST(ABS(COALESCE(replies_count, 0)), 1)) * 3.5 +
+        LOG(GREATEST(ABS(COALESCE(up_votes - down_votes, 0)), 1)) * 2.5 +
+        LOG(GREATEST(ABS(COALESCE(cv.comment_vote_score, 0)), 1)) * 2 +
+        LOG(GREATEST(ABS(COALESCE(rv.reply_vote_score, 0)), 1)) * 1.5 +
+        LOG(GREATEST(ABS(COALESCE(pv.view_count, 0)), 1)) * 1 +
         CASE 
-          WHEN COALESCE(comments_count, 0) > 0 THEN 1 
+          WHEN COALESCE(comments_count, 0) > 0 THEN 2
+          WHEN COALESCE(replies_count, 0) > 0 THEN 1.8
           WHEN COALESCE(up_votes, 0) > 0 THEN 1.5
-          WHEN COALESCE(pv.view_count, 0) > 10 THEN 1.2
-          WHEN COALESCE(cv.comment_vote_score, 0) > 5 THEN 1.1
-          WHEN COALESCE(rv.reply_vote_score, 0) > 5 THEN 1.0
+          WHEN COALESCE(cv.comment_vote_score, 0) > 5 THEN 1.2
+          WHEN COALESCE(rv.reply_vote_score, 0) > 5 THEN 1.1
+          WHEN COALESCE(pv.view_count, 0) > 10 THEN 1
           ELSE -1 
         END *
         (EXTRACT(EPOCH FROM (NOW() - created_at)) / 45000)

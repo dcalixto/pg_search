@@ -1,3 +1,5 @@
+require "./pg_search/*"
+
 module PgSearch
   extend self
 
@@ -15,15 +17,76 @@ module PgSearch
     end
   end
 
-  macro searchable_columns(columns)
-    def self.search(query : String)
+  macro searchable_columns(columns, options = nil)
+    def self.search(query : String, config = {} of Symbol => String|Bool|Float64)
+      return [] of self if query.blank?
+      
+      tsearch = TSearch.new(
+        dictionary: config[:dictionary]? || "english",
+        prefix: config[:prefix]? || false,
+        any_word: config[:any_word]? || false
+      )
+      
+      sanitized_query = PG::EscapeHelper.escape_literal("%#{query}%")
+      
+      where_conditions = {{ columns }}.map { |col| "#{table_name}.#{col} ILIKE #{sanitized_query}" }
+      
+      sql = <<-SQL
+        SELECT DISTINCT #{table_name}.*, 
+          COALESCE(pes.engagement, 0) as engagement_score,
+          ts_rank(
+            setweight(#{tsearch.search_vector("title")}, 'A') ||
+            setweight(#{tsearch.search_vector("body")}, 'B') ||
+            setweight(to_tsvector('#{tsearch.dictionary}', COALESCE(string_agg(comments.body, ' '), '')), 'C'),
+            to_tsquery('#{tsearch.dictionary}', '#{tsearch.search_query(query)}')
+          ) * (1 + COALESCE(pes.engagement, 0)) as rank
+        FROM #{table_name}
+        LEFT JOIN post_engagement_scores pes ON pes.id = #{table_name}.id
+        LEFT JOIN comments ON comments.commentable_id = #{table_name}.id 
+          AND comments.commentable_type = '#{self}'
+        WHERE #{where_conditions.join(" OR ")}
+        GROUP BY #{table_name}.id, pes.engagement
+        ORDER BY rank DESC, #{table_name}.created_at DESC
+      SQL
+
+      DB.connect(DB_URL) do |db|
+        db.query_all(sql, as: self)
+      end
+    end
+
+    def self.advanced_search(query : String, options = {} of Symbol => String|Bool)
       return [] of self if query.blank?
       
       sanitized_query = PG::EscapeHelper.escape_literal("%#{query}%")
-      where_conditions = {{ columns }}.map { |col| "#{col} ILIKE #{sanitized_query}" }.join(" OR ")
       
+      sql = <<-SQL
+        WITH search_results AS (
+          SELECT 
+            p.*,
+            COALESCE(pes.engagement, 0) as engagement_score,
+            ts_rank(
+              setweight(to_tsvector('english', p.title), 'A') ||
+              setweight(to_tsvector('english', p.body), 'B') ||
+              setweight(to_tsvector('english', COALESCE(string_agg(c.body, ' '), '')), 'C'),
+              plainto_tsquery('english', #{sanitized_query})
+            ) as text_rank
+          FROM posts p
+          LEFT JOIN post_engagement_scores pes ON p.id = pes.id
+          LEFT JOIN comments c ON c.commentable_id = p.id AND c.commentable_type = 'Post'
+          WHERE 
+            p.title ILIKE #{sanitized_query} OR
+            p.body ILIKE #{sanitized_query} OR
+            c.body ILIKE #{sanitized_query}
+          GROUP BY p.id, pes.engagement
+        )
+        SELECT *,
+          (text_rank * (1 + engagement_score)) as final_rank
+        FROM search_results
+        ORDER BY final_rank DESC, created_at DESC
+      SQL
+
       DB.connect(DB_URL) do |db|
-        db.query_all "SELECT * FROM post_engagement_scores WHERE #{where_conditions} ORDER BY engagement DESC, created_at DESC", as: self
+        db.query_all(sql, as: self)
       end
     end
   end
@@ -36,28 +99,6 @@ module PgSearch
       end
     end
   end
-
-  # def self.calculate_engagement_score(resource_type : String, resource_id : Int64)
-  #   query = <<-SQL
-  #     SELECT COALESCE(
-  #       SUM(
-  #         CASE
-  #           WHEN positive = true THEN 1
-  #           WHEN negative = true THEN -1
-  #           ELSE value
-  #         END
-  #       )::bigint,
-  #       0
-  #     ) as score
-  #     FROM votes
-  #     WHERE resource_type = $1
-  #     AND resource_id = $2
-  #   SQL
-
-  #   DB.connect(DB_URL) do |db|
-  #     db.query_one(query, resource_type, resource_id, as: Int64)
-  #   end
-  # end
 
   def self.calculate_engagement_score(id : Int64) : Float64
     DB.connect(DB_URL) do |db|
