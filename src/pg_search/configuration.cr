@@ -16,7 +16,7 @@ module PgSearch
     class Column
       getter name : String
       getter weight : String?
-      
+
       def initialize(@name, @weight, @model)
       end
 
@@ -31,15 +31,11 @@ module PgSearch
 
     class Association
       getter columns : Array(ForeignColumn)
-      
+
       def initialize(@model, @name : Symbol, column_names)
-        @columns = Array(column_names).map do |column_name, weight|
+        @columns = column_names.map do |column_name, weight|
           ForeignColumn.new(column_name.to_s, weight, @model, self)
         end
-      end
-
-      def join_sql(primary_key)
-        "LEFT OUTER JOIN #{table_name} ON #{table_name}.id = #{primary_key}"
       end
     end
 
@@ -51,8 +47,8 @@ module PgSearch
 
     private def default_options
       {
-        using: :tsearch,
-        ignoring: [] of Symbol
+        using:    :tsearch,
+        ignoring: [] of Symbol,
       }
     end
 
