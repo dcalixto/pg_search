@@ -1,7 +1,7 @@
 module PgSearch
   class ScopeOptions
     getter config : Configuration
-    getter model : Class
+    getter model : DB::Serializable.class
     getter feature_options : Hash(Symbol, Hash(Symbol, String | Bool | Float64))
 
     def initialize(@config)
