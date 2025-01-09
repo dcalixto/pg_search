@@ -1,6 +1,6 @@
 module PgSearch
   class Configuration
-    getter model : Class
+    getter model : Class(Reference)
     getter options : Hash(Symbol, String | Symbol | Hash(Symbol, String | Bool))
 
     def initialize(@options, @model)
