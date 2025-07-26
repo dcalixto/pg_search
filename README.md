@@ -79,8 +79,6 @@ end
 posts = Post.search_by_title("crystal")
 
 ```
-
-
 ## Search with Multi-search
 
 `````crystal
@@ -107,12 +105,7 @@ PgSearch::Multisearch.rebuild(Post)
 # Search across all models
 results = PgSearch::Multisearch::Document.search("crystal")
 
-
 ```
-
-
-
-
 ## multisearchable
 
 `````crystal
@@ -201,25 +194,4 @@ crystal spec
 
 This shard is open-sourced under the MIT License.
 
-module PgSearch
-module Features
-class TSearch # Adds support for: # - Dictionary selection (english, simple, etc) # - Prefix matching # - Negation (!word) # - Any word matching # - Text highlighting # - Custom normalization weights
 
-      property dictionary : String = "english"
-      property prefix : Bool = false
-      property negation : Bool = false
-      property any_word : Bool = false
-
-      def search_vector(text : String)
-        "to_tsvector('#{dictionary}', #{text})"
-      end
-
-      def search_query(query : String)
-        terms = query.split
-        terms.map! { |t| "#{t}:*" } if prefix
-        terms.join(any_word ? " | " : " & ")
-      end
-    end
-
-end
-end
